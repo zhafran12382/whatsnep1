@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 // Authentication Context for managing user sessions
@@ -17,6 +17,9 @@ export const AuthProvider = ({ children }) => {
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  
+  // Ref to track current user id for cleanup functions
+  const userIdRef = useRef(null)
 
   // Fetch user profile from database
   const fetchUserProfile = async (userId) => {
@@ -51,6 +54,11 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  // Keep ref in sync with user id
+  useEffect(() => {
+    userIdRef.current = user?.id || null
+  }, [user?.id])
+
   useEffect(() => {
     // Get initial session
     const getSession = async () => {
@@ -60,6 +68,7 @@ export const AuthProvider = ({ children }) => {
         
         if (session?.user) {
           setUser(session.user)
+          userIdRef.current = session.user.id
           await fetchUserProfile(session.user.id)
           await updateOnlineStatus(session.user.id, true)
         }
@@ -78,12 +87,15 @@ export const AuthProvider = ({ children }) => {
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
           setUser(session.user)
+          userIdRef.current = session.user.id
           await fetchUserProfile(session.user.id)
           await updateOnlineStatus(session.user.id, true)
         } else if (event === 'SIGNED_OUT') {
-          if (user?.id) {
-            await updateOnlineStatus(user.id, false)
+          // Use ref to get current user id to avoid stale closure
+          if (userIdRef.current) {
+            await updateOnlineStatus(userIdRef.current, false)
           }
+          userIdRef.current = null
           setUser(null)
           setUserProfile(null)
         }
@@ -92,12 +104,13 @@ export const AuthProvider = ({ children }) => {
     )
 
     // Handle tab/window close - set user offline
-    const handleBeforeUnload = async () => {
-      if (user?.id) {
-        // Using navigator.sendBeacon for reliable cleanup
-        const url = `${supabase.supabaseUrl}/rest/v1/users?id=eq.${user.id}`
-        const data = JSON.stringify({ is_online: false, last_seen: new Date().toISOString() })
-        navigator.sendBeacon(url, new Blob([data], { type: 'application/json' }))
+    // Note: We use synchronous update approach since sendBeacon requires auth headers
+    // The server-side session timeout will handle cases where this fails
+    const handleBeforeUnload = () => {
+      if (userIdRef.current) {
+        // Attempt to update status - this may not always succeed on tab close
+        // but Supabase session timeout will handle cleanup
+        updateOnlineStatus(userIdRef.current, false)
       }
     }
 
@@ -107,7 +120,7 @@ export const AuthProvider = ({ children }) => {
       subscription.unsubscribe()
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [user?.id])
+  }, []) // Empty dependency array - only run once on mount
 
   // Sign up with username and password
   const signUp = async (username, password) => {

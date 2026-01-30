@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
 
@@ -21,6 +21,9 @@ export const ChatProvider = ({ children }) => {
   const [typingUsers, setTypingUsers] = useState({})
   const [unreadCounts, setUnreadCounts] = useState({})
   const [loading, setLoading] = useState(false)
+  
+  // Ref to store typing channel for cleanup
+  const typingChannelRef = useRef(null)
 
   // Fetch all conversations for the current user
   const fetchConversations = useCallback(async () => {
@@ -188,20 +191,23 @@ export const ChatProvider = ({ children }) => {
     }
   }
 
-  // Set typing status
+  // Set typing status - broadcasts to the conversation channel
   const setTyping = async (conversationId, isTyping) => {
     if (!user || !conversationId) return
 
     try {
-      await supabase.channel(`typing:${conversationId}`).send({
-        type: 'broadcast',
-        event: 'typing',
-        payload: {
-          userId: user.id,
-          username: user.user_metadata?.username,
-          isTyping,
-        },
-      })
+      // Use the active typing channel if available
+      if (typingChannelRef.current) {
+        typingChannelRef.current.send({
+          type: 'broadcast',
+          event: 'typing',
+          payload: {
+            userId: user.id,
+            username: user.user_metadata?.username,
+            isTyping,
+          },
+        })
+      }
     } catch (err) {
       console.error('Error setting typing status:', err)
     }
@@ -275,7 +281,10 @@ export const ChatProvider = ({ children }) => {
 
   // Subscribe to typing indicators for active chat
   useEffect(() => {
-    if (!activeChat || !user) return
+    if (!activeChat || !user) {
+      typingChannelRef.current = null
+      return
+    }
 
     const typingChannel = supabase
       .channel(`typing:${activeChat.id}`)
@@ -286,21 +295,25 @@ export const ChatProvider = ({ children }) => {
             [activeChat.id]: payload.isTyping ? payload.username : null,
           }))
 
-          // Clear typing indicator after 3 seconds
+          // Clear typing indicator after 2 seconds (matching ChatArea timeout)
           if (payload.isTyping) {
             setTimeout(() => {
               setTypingUsers(prev => ({
                 ...prev,
                 [activeChat.id]: null,
               }))
-            }, 3000)
+            }, 2500)
           }
         }
       })
       .subscribe()
 
+    // Store ref for use in setTyping function
+    typingChannelRef.current = typingChannel
+
     return () => {
       typingChannel.unsubscribe()
+      typingChannelRef.current = null
     }
   }, [activeChat, user])
 

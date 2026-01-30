@@ -5,14 +5,15 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co'
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key'
 
-// Create Supabase client with session-based auth (auto-logout on tab close)
+// Create Supabase client with session-based auth
+// Using sessionStorage means session persists in current tab only
+// Session is automatically cleared when tab/browser closes
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    // Session-based authentication - auto logout when tab is closed
-    persistSession: true,
+    persistSession: true, // Persist within sessionStorage (current tab only)
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storage: sessionStorage, // Using sessionStorage for auto-logout on tab close
+    storage: sessionStorage, // Auto-logout when tab closes
   },
   realtime: {
     params: {

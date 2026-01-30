@@ -5,10 +5,7 @@ import {
   MessageCircle, 
   Settings, 
   LogOut, 
-  Search, 
-  Plus,
-  Menu,
-  X
+  Plus
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useChat } from '../contexts/ChatContext'
