@@ -37,6 +37,14 @@ export interface Database {
                     created_at?: string
                     updated_at?: string
                 }
+                Relationships: [
+                    {
+                        foreignKeyName: "profiles_id_fkey"
+                        columns: ["id"]
+                        referencedRelation: "users"
+                        referencedColumns: ["id"]
+                    }
+                ]
             }
             conversations: {
                 Row: {
@@ -54,6 +62,7 @@ export interface Database {
                     created_at?: string
                     updated_at?: string
                 }
+                Relationships: []
             }
             conversation_participants: {
                 Row: {
@@ -74,12 +83,26 @@ export interface Database {
                     user_id?: string
                     joined_at?: string
                 }
+                Relationships: [
+                    {
+                        foreignKeyName: "conversation_participants_conversation_id_fkey"
+                        columns: ["conversation_id"]
+                        referencedRelation: "conversations"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "conversation_participants_user_id_fkey"
+                        columns: ["user_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["id"]
+                    }
+                ]
             }
             messages: {
                 Row: {
                     id: string
                     conversation_id: string
-                    sender_id: string
+                    sender_id: string | null
                     content: string
                     is_read: boolean
                     created_at: string
@@ -100,6 +123,20 @@ export interface Database {
                     is_read?: boolean
                     created_at?: string
                 }
+                Relationships: [
+                    {
+                        foreignKeyName: "messages_conversation_id_fkey"
+                        columns: ["conversation_id"]
+                        referencedRelation: "conversations"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "messages_sender_id_fkey"
+                        columns: ["sender_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["id"]
+                    }
+                ]
             }
         }
         Views: {
@@ -109,6 +146,9 @@ export interface Database {
             [_ in never]: never
         }
         Enums: {
+            [_ in never]: never
+        }
+        CompositeTypes: {
             [_ in never]: never
         }
     }
